@@ -39,13 +39,18 @@ const MainTaskModal: React.FC<MainTaskModalProps> = ({
     if (selectedCalculator && selectedSubCalculator) {
       const selectedGroup = filteredGroups.find(g => g.type === selectedCalculator);
       const selectedSubType = selectedGroup?.subTypes.find(s => s.type === selectedSubCalculator);
-      const taskName = selectedSubType?.label || 'Main Task';
+      
+      // Use the calculator's provided name or fall back to the selected type's label
+      const taskName = results.name || selectedSubType?.label || 'Main Task';
       
       onAddTask({
         name: taskName,
         calculatorType: selectedCalculator,
         calculatorSubType: selectedSubCalculator,
-        results: results
+        results: {
+          ...results,
+          name: taskName  // Ensure the name is in both places
+        }
       });
     }
     setShowCalculator(false);

@@ -476,7 +476,7 @@ const EventDetails = () => {
                         </span>
                       </p>
                       <p className="text-sm text-gray-600">
-                        Hours: {task.hours_spent} / {task.hours_worked}
+                        Hours: {parseFloat(task.hours_spent.toFixed(2))} / {parseFloat(task.hours_worked.toFixed(2))}
                         <span className={`ml-2 font-medium ${getProgressTextColor(hoursPercent)}`}>
                           ({hoursPercent.toFixed(1)}%)
                         </span>
@@ -536,7 +536,7 @@ const EventDetails = () => {
                   <div>
                     <h3 className="font-medium">{material.name}</h3>
                     <p className="text-sm text-gray-600 mt-1">
-                      Delivered: {totalDelivered.toFixed(2)} / {material.total_amount} {material.unit}
+                      Delivered: {totalDelivered.toFixed(2)} / {material.total_amount.toFixed(2)} {material.unit}
                       <span className="ml-2 font-medium text-green-600">
                         ({percentDelivered.toFixed(1)}%)
                       </span>

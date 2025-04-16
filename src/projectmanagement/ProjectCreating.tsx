@@ -10,6 +10,7 @@ import CalculatorModal from './CalculatorModal';
 
 // Types
 interface CalculatorResults {
+  name: string;
   materials?: {
     name: string;
     quantity: number;
@@ -22,6 +23,8 @@ interface CalculatorResults {
   taskBreakdown?: {
     name: string;
     hours: number;
+    unit?: string;
+    quantity?: number;
   }[];
   excavationTime?: number;
   transportTime?: number;
@@ -31,6 +34,7 @@ interface CalculatorResults {
     excavator?: string;
     carrier?: string;
   };
+  unit?: string;
 }
 
 interface MainTask {
@@ -406,17 +410,24 @@ const ProjectCreating = () => {
         if (mainTask.results?.taskBreakdown) {
           // Create tasks from task breakdown
           for (const breakdown of mainTask.results.taskBreakdown) {
+            // Combine main task name with specific task name
+            const mainTaskName = mainTask.name || mainTask.results.name || 'Unnamed Task';
+            const subtaskName = breakdown.task || breakdown.name || '';
+            const taskName = subtaskName ? `${mainTaskName} - ${subtaskName}` : mainTaskName;
+            
+            console.log('Creating task with name:', taskName); // Debug log
+            
             // Create task in tasks_done
             const { error: taskError } = await supabase
               .from('tasks_done')
               .insert({
                 event_id: event.id,
                 user_id: user?.id,
-                name: breakdown.name,
-                description: mainTask.name,
+                name: taskName,  // Now includes both main task and subtask names
+                description: mainTask.name || '',
                 unit: breakdown.unit || mainTask.results.unit || '',
                 amount: `${breakdown.quantity || 1} ${breakdown.unit || mainTask.results.unit || ''}`,
-                hours_worked: breakdown.hours || 0,
+                hours_worked: parseFloat(breakdown.hours.toFixed(2)) || 0,
                 is_finished: false
               });
 
@@ -424,6 +435,29 @@ const ProjectCreating = () => {
               console.error('Error creating task:', taskError);
               throw new Error('Failed to create task');
             }
+          }
+        } else if (mainTask.results) {
+          // If no task breakdown but we have results, create a single task
+          const taskName = mainTask.name || mainTask.results.name || 'Unnamed Task';
+          
+          console.log('Creating single task with name:', taskName); // Debug log
+          
+          const { error: taskError } = await supabase
+            .from('tasks_done')
+            .insert({
+              event_id: event.id,
+              user_id: user?.id,
+              name: taskName,
+              description: mainTask.results.name || '',
+              unit: mainTask.results.unit || '',
+              amount: '1',  // Default amount
+              hours_worked: parseFloat((mainTask.results.totalTime || mainTask.results.labor || 0).toFixed(2)),
+              is_finished: false
+            });
+
+          if (taskError) {
+            console.error('Error creating task:', taskError);
+            throw new Error('Failed to create task');
           }
         }
 
@@ -445,6 +479,76 @@ const ProjectCreating = () => {
               console.error('Error creating material:', materialError);
               throw new Error('Failed to create material');
             }
+          }
+        }
+      }
+
+      // Add this after processing main tasks but before processing minor tasks
+      // Add Soil Excavation and Tape 1 Preparation tasks
+      if (selectedExcavator) {
+        if (totalSoilExcavation > 0) {
+          const excavationTime = findDiggerTimeEstimate(selectedExcavator["size (in tones)"] || 0, totalSoilExcavation);
+          const transportTime = excavationOption === 'removal' && selectedCarrier
+            ? findCarrierTimeEstimate(selectedCarrier["size (in tones)"] || 0, totalSoilExcavation)
+            : 0;
+          
+          // Format the hours to 2 decimal places
+          const totalHours = parseFloat((excavationTime + transportTime).toFixed(2));
+          
+          // Create task name with equipment details
+          const equipmentDetails = selectedCarrier
+            ? `(${selectedExcavator["size (in tones)"]}t digger and ${selectedCarrier["size (in tones)"]}t ${selectedCarrier.type === 'barrows_dumpers' ? 'barrow' : 'carrier'})`
+            : `(${selectedExcavator["size (in tones)"]}t digger)`;
+          
+          // Create Soil Excavation task
+          const { error: soilTaskError } = await supabase
+            .from('tasks_done')
+            .insert({
+              event_id: event.id,
+              user_id: user?.id,
+              name: `Soil Excavation ${equipmentDetails}`,
+              description: `Total soil to excavate: ${totalSoilExcavation.toFixed(2)} tonnes`,
+              unit: 'tonnes',
+              amount: `${totalSoilExcavation.toFixed(2)} tonnes`,
+              hours_worked: totalHours,
+              hours_worked: excavationTime + transportTime,
+              is_finished: false
+            });
+
+          if (soilTaskError) {
+            console.error('Error creating soil excavation task:', soilTaskError);
+            throw new Error('Failed to create soil excavation task');
+          }
+        }
+
+        if (totalTape1 > 0) {
+          const tape1ExcavationTime = findDiggerTimeEstimate(selectedExcavator["size (in tones)"] || 0, totalTape1);
+          const tape1TransportTime = excavationOption === 'removal' && selectedCarrier
+            ? findCarrierTimeEstimate(selectedCarrier["size (in tones)"] || 0, totalTape1)
+            : 0;
+          
+          // Create task name with equipment details
+          const equipmentDetails = selectedCarrier
+            ? `(${selectedExcavator["size (in tones)"]}t digger and ${selectedCarrier["size (in tones)"]}t ${selectedCarrier.type === 'barrows_dumpers' ? 'barrow' : 'carrier'})`
+            : `(${selectedExcavator["size (in tones)"]}t digger)`;
+          
+          // Create Tape 1 Preparation task
+          const { error: tape1TaskError } = await supabase
+            .from('tasks_done')
+            .insert({
+              event_id: event.id,
+              user_id: user?.id,
+              name: `Tape 1 Preparation ${equipmentDetails}`,
+              description: `Total Type 1 aggregate to prepare: ${totalTape1.toFixed(2)} tonnes`,
+              unit: 'tonnes',
+              amount: `${totalTape1.toFixed(2)} tonnes`,
+              hours_worked: tape1ExcavationTime + tape1TransportTime,
+              is_finished: false
+            });
+
+          if (tape1TaskError) {
+            console.error('Error creating tape 1 preparation task:', tape1TaskError);
+            throw new Error('Failed to create tape 1 preparation task');
           }
         }
       }
